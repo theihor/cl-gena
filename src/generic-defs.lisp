@@ -43,6 +43,10 @@
        (let ((f (call-next-method)))
          (setf (genotype-fitness g) f))))
 
+(defun fitness-comparator (g1 g2)
+  (compare-number (fitness g1)
+                  (fitness g2)))
+
 ;; selection stage parameters
 
 ;; Note: the next equality must hold
@@ -58,22 +62,23 @@
 (defparameter *tournament-t* 2)
 (defparameter *tournament-rate* 0.2)
 
-;; population -> population
+;; the probabilty that genotype pair will yield children
+(defparameter *reproduction-probability* 1.0)
+
+;; population -> [genotype]
 (defgeneric select (population))
 
 (defmethod select ((p population))
   "Default behaviour performs elitism and tournament"
   (let ((g-list (genotype-list p))
-        (selected nil))
+        elite champions)
     (when *elitism-enabled*
       (let ((elite-size (round (* *elitism-rate*
                                   (size p)))))
-        (multiple-value-bind (elite rest)
+        (multiple-value-bind (best rest)
             (take-n-max elite-size g-list
-                        :comparator (lambda (g1 g2)
-                                      (compare-number (fitness g1)
-                                                      (fitness g2))))
-          (setf selected elite)
+                        :comparator #'fitness-comparator)
+          (setf elite best)
           (setf g-list rest))))
 
     (when *tournament-enabled*
@@ -82,12 +87,15 @@
         (labels ((%take (n lst &optional acc)
                    (if (<= n 0)
                        acc
-                       (let ((g (maximum (random-take *tournament-t* lst))))
+                       (let ((g (maximum (random-take *tournament-t* lst)
+                                         :comparator #'fitness-comparator)))
                          (%take (1- n) (remove g lst) (cons g acc))))))
-          (appendf selected (%take champions-count g-list)))))
+          (setf champions (%take champions-count g-list)))))
     
-    (when (null selected) (error "No genotype passed the selection stage"))
-    selected))
+    (when (and (null elite)
+               (null champions))
+      (error "No genotype passed the selection stage"))
+    (values elite champions)))
 
 ;; genotype -> genotype -> [genotype]
 (defgeneric crossover (genotype1 genotype2))
@@ -97,3 +105,19 @@
 
 (defgeneric terminate? (population))
 
+;; population -> population
+(defun evolve (pop)
+  "Performs one iteration of evolution, spawning new population"
+  (multiple-value-bind (elite champions) (select pop)
+    (let* ((parents (append elite champions))
+           (children (loop for p1 in parents append
+                          (loop for p2 in parents
+                             unless (eq p1 p2)
+                             when (probability-check *reproduction-probability*)
+                             append (mapcar #'mutate (crossover p1 p2))))))
+      (take-n-max (size pop) children :comparator #'fitness-comparator)
+      (copy-instance pop :genotype-list children))))
+
+;; population -> population
+(defun evolution (pop)
+  pop)

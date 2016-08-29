@@ -2,7 +2,9 @@
   (:use :common-lisp)
   (:export #:random-float
            #:split-at
-           #:random-take))
+           #:random-take
+           #:probability-check
+           #:do-with-probability))
 
 (in-package :cl-gena/random)
 
@@ -26,3 +28,14 @@
           (t (multiple-value-bind (x l r)
                  (split-at (random len) lst)
                (cons x (random-take (1- n) (append l r))))))))
+
+(defun probability-check (p)
+  (cond ((= p 1.0) t)
+        ((= p 0.0) nil)
+        ((or (< p 0.0) (> p 1.0)) (error "Probability must be in range [0..1]"))
+        (t (< (random 1.0) p))))
+
+(defmacro do-with-probability (p &body body)
+  `(when (probabilty-check ,p)
+     ,@body))
+
