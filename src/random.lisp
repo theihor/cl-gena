@@ -1,6 +1,7 @@
 (defpackage :cl-gena/random
   (:use :common-lisp)
   (:export #:random-float
+           #:random-int
            #:split-at
            #:random-take
            #:probability-check
@@ -11,6 +12,10 @@
 (defun random-float (&key (from 0.0) (to 1.0))
   (when (> from to) (error "Invalid bounds"))
   (+ from (random (- to from))))
+
+(defun random-int (&key (from 1) (to 100))
+  (when (> from to) (error "Invalid bounds"))
+  (+ from (random (1+ (- to from)))))
 
 (defun split-at (n lst &key acc)
   "Returns (values nth-element left-list right-list)"

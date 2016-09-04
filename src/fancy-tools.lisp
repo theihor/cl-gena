@@ -40,8 +40,8 @@
       (let ((x (first lst)))
         (if (and max
                  (eq (funcall comparator x max) :lt))
-            (maximum (cdr lst) :max max)
-            (maximum (cdr lst) :max x)))))
+            (maximum (cdr lst) :max max :comparator comparator)
+            (maximum (cdr lst) :max x :comparator comparator)))))
 
 (defun partition-around-pivot (pivot lst  &key (comparator #'compare-number))
   (let ((ln 0) (mn 0) (rn 0)
