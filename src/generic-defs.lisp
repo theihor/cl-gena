@@ -75,7 +75,7 @@
 ;; that's pretty easy though (to make population of size 1000 decay, (er + tr) should be < 0.032)
 
 (defparameter *elitism-enabled* t)
-(defparameter *elitism-rate* 0.1)
+(defparameter *elitism-rate* 0.14)
 
 (defparameter *tournament-enabled* t)
 (defparameter *tournament-t* 2)
@@ -106,7 +106,10 @@
     (when *tournament-enabled*
       (let ((champions-count (round (* *tournament-rate*
                                        (size p)))))
-        (labels ((%take (n lst &optional acc)
+        (labels ((%remove-all (what from)
+                   (reduce (lambda (lst x) (remove x lst))
+                           what :initial-value from))
+                 (%take (n lst &optional acc)
                    (if (or (<= n 0) (null lst))
                        acc
                        (let* ((candidates (random-take *tournament-t* lst))
@@ -114,7 +117,7 @@
                                    ;; (format t "candidates: ~A~%" candidates)
                                    (maximum candidates :comparator #'fitness-comparator))))
                          ;; (format t "winner: ~A~%" g)
-                         (%take (1- n) (remove g lst) (cons g acc))))))
+                         (%take (1- n) (%remove-all candidates lst) (cons g acc))))))
           (setf champions (%take champions-count g-list)))))
     ;; (format t "elite: ~A~%champions: ~A~%" elite champions)
     (when (and (null elite)
@@ -144,12 +147,13 @@
                           (loop for p2 in parents
                              unless (eq p1 p2)
                              when (probability-check *reproduction-probability*)
-                             append (mapcar #'mutate (crossover p1 p2))))))
+                             append (mapcar #'mutate (crossover p1 p2)))))
+           (genotype-list (append elite
+                                  (take-n-max (- (size pop) (length elite))
+                                              children
+                                              :comparator #'fitness-comparator))))
       
-      (copy-instance pop
-                     :genotype-list (take-n-max (size pop)
-                                                children
-                                                :comparator #'fitness-comparator)))))
+      (copy-instance pop :genotype-list genotype-list))))
 
 ;; population -> population
 (defun evolution (pop &key max-iteration timeout step-func)
