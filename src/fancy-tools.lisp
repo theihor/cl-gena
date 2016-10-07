@@ -83,3 +83,8 @@
   `(setf ,lst
          (funcall #'append ,lst ,@lists)))
 
+(defmacro sqr (x)
+  (let ((z (gensym)))
+    `(let ((,z ,x))
+       (* ,z ,z))))
+

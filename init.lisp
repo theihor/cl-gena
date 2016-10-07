@@ -30,10 +30,15 @@
 (asdf:initialize-source-registry '(:source-registry
                                    :inherit-configuration
                                    (:directory :here)
-                                   (:directory (:here "src/"))))
+                                   (:directory (:here "src/"))
+                                   (:directory (:here "examples/"))))
 
 (asdf:compile-system :cl-gena)
 (asdf:load-system :cl-gena)
+
+(asdf:compile-system :cl-gena-examples)
+(asdf:load-system :cl-gena-examples)
+
 
 (print "Welcome.")
 

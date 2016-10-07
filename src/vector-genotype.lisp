@@ -1,5 +1,9 @@
 (defpackage :cl-gena/vector-genotype
-  (:use :common-lisp :cl-gena/fancy-tools :cl-gena/generic-defs :cl-gena/random))
+  (:use :common-lisp :cl-gena/fancy-tools :cl-gena/generic-defs :cl-gena/random)
+  (:export #:vector-genotype
+           #:vector-genotype-generator
+           #:vg-population
+           #:get-sequence))
 
 (in-package :cl-gena/vector-genotype)
 
@@ -28,10 +32,10 @@
      do (format s "~%    ~A" g))
   (format s " ]>"))
 
-(defun vector-genotype-generator (size lower-bound upper-bound)
+(defun vector-genotype-generator (size lower-bound upper-bound &key (type 'vector-genotype))
   (lambda (index)
     (declare (ignore index))
-    (make-instance 'vector-genotype
+    (make-instance type
                    :sequence (loop with array = (make-array size)
                                 for i from 0 below size
                                 do (setf (aref array i)
@@ -42,28 +46,21 @@
                    :lower-bound lower-bound
                    :upper-bound upper-bound)))
 
-(defmethod genotype-equal ((g1 vector-genotype) (g2 vector-genotype))
-  (and (equalp (get-sequence g1)
-               (get-sequence g2))
-       (= (lower-bound g1)
-          (lower-bound g2))
-       (= (upper-bound g1)
-          (upper-bound g2))
-       (= (size g1)
-          (size g2))))
+;; (defmethod genotype-equal ((g1 vector-genotype) (g2 vector-genotype))
+;;   (and (equalp (get-sequence g1)
+;;                (get-sequence g2))
+;;        (= (lower-bound g1)
+;;           (lower-bound g2))
+;;        (= (upper-bound g1)
+;;           (upper-bound g2))
+;;        (= (size g1)
+;;           (size g2))))
 
 (defun bounded+ (x y lb ub)
   (let ((z (+ x y)))
     (cond ((< z lb) lb)
           ((> z ub) ub)
           (t z))))
-
-;; for the vector of reals let's have next mutation parameters
-;; it is a good idea to decrease them during evolution
-(defparameter *initial-mutation-depth* 1e-3)
-(defparameter *mutation-depth* *initial-mutation-depth*)
-(defparameter *initial-mutation-width* 0.2)
-(defparameter *mutation-width* *initial-mutation-width*)
 
 (defmethod mutate ((g vector-genotype))
   (let* ((s (copy-seq (get-sequence g)))
@@ -82,7 +79,7 @@
     (copy-instance g :sequence s)))
 
 (defparameter *min-children* 1)
-(defparameter *max-children* 1)
+(defparameter *max-children* 2)
 
 (defmethod crossover ((g1 vector-genotype) (g2 vector-genotype)) 
   (assert (= (size g1) (size g2)))
@@ -105,56 +102,4 @@
          collect (copy-instance g1
                                 :sequence (%spawn-sequence))))))
 
-(defmethod fitness ((vg vector-genotype))
-  "for y = sum(x ^ 2)"
-  (/ 1.0
-     (+ 1.0 (loop for x across (get-sequence vg) sum (* x x)))))
 
-(defun best-fitness (pop)
-  (loop for x across (get-sequence(maximum (genotype-list pop)
-                                           :comparator #'fitness-comparator))
-     sum (* x x)))
-
-(defmacro sqr (x)
-  (let ((z (gensym)))
-    `(let ((,z ,x))
-       (* ,z ,z))))
-
-(defun decrease-mutation-round (i max-i)
-  (setf *mutation-depth* (* (sqrt (- 1 (sqr (/ i max-i)))) *initial-mutation-depth*))
-  (setf *mutation-width* (* (sqrt (- 1 (sqr (/ i max-i)))) *initial-mutation-width*)))
-
-(defun decrease-mutation-linear (i max-i)
-  (setf *mutation-depth* (* (/ (- max-i i) max-i) *initial-mutation-depth*))
-  (setf *mutation-width* (* (/ (- max-i i) max-i) *initial-mutation-width*)))
-
-(defun decrease-mutation-exp (i max-i)
-  (setf *mutation-depth* (* (exp (/ (- i) max-i)) *initial-mutation-depth*))
-  (setf *mutation-width* (* (exp (/ (- i) max-i)) *initial-mutation-width*)))
-
-(defun test ()
-  ;; (setf *initial-mutation-width* 0.4)
-  ;; (setf *initial-mutation-depth* 0.3)
-  (let* ((pop (initialize-population vg-population
-                                     (vector-genotype-generator 20 -1000.0 +1000.0)
-                                     400))
-         (max-i 400)
-         (b (best-fitness pop)))
-    ;; (format t "Initial pop: ~A~%" pop)
-    (evolution pop
-               :timeout 60.0
-               :max-iteration max-i
-               :step-func (lambda (pop i time)
-                            (let ((new-b (best-fitness pop)))
-                              (cond ((> b new-b)
-                                     (setf b new-b)
-                                     (format t "~A [~A s]: ~1,2E {mw = ~A; md = ~A;}~%"
-                                             i (float time) b *mutation-width* *mutation-depth*))
-                                    ((< b new-b) 
-                                     (format t "WORSING ~A [~A s]: ~E {mw = ~A; md = ~A;}~%"
-                                             i (float time) new-b *mutation-width* *mutation-depth*))
-                                    (t nil)))
-                            ;; (format t "pop: ~A~%" pop)
-                            
-                            (decrease-mutation-linear i max-i)
-                            ))))

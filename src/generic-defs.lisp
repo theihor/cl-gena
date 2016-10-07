@@ -1,19 +1,25 @@
 (defpackage :cl-gena/generic-defs
   (:use :common-lisp :anaphora :cl-gena/fancy-tools :cl-gena/random)
   (:export #:genotype #:genotype-equal
-           #:population #:size #:genotype-list
-           #:*population-size*
+           #:population #:size #:genotype-list 
            #:fitness #:fitness-comparator
            #:initialize-population
            #:select
            #:crossover
            #:mutate
            #:terminate?
-           #:evolution))
+           #:evolution
+           #:best-genotype
+           #:*initial-mutation-depth*
+           #:*mutation-depth*
+           #:*initial-mutation-width*
+           #:*mutation-width*
+           #:*mutation-decrease-rate*
+           #:*elitism-rate*
+           #:*tournament-rate*
+           ))
 
 (in-package :cl-gena/generic-defs)
-
-(defparameter *population-size* 1024)
 
 (defclass genotype () ())
 
@@ -37,16 +43,14 @@
 (defmethod genotype-equal (g1 g2)
   (eq g1 g2))
 
-
 (defparameter *fitness-cache* (make-hash-table :test #'eq))
 ;; Note: fitness is almost always problem specific
 ;; genotype -> number
 (defgeneric fitness (g))
 
 (defmethod fitness :around ((g genotype))
-  "Memoization"
-  (when (> (hash-table-count *fitness-cache*) 10000)
-    (clrhash *fitness-cache*))
+  ;; (when (> (hash-table-count *fitness-cache*) 10000)
+  ;;   (clrhash *fitness-cache*)) 
   (aif (gethash g *fitness-cache*)
        it
        (let ((f (call-next-method)))
@@ -83,6 +87,38 @@
 
 ;; the probabilty that genotype pair will yield children
 (defparameter *reproduction-probability* 1.0)
+
+;; mutation depth is how much the value of particular gene may change
+(defparameter *initial-mutation-depth* 1e-3)
+(defparameter *mutation-depth* *initial-mutation-depth*)
+;; mutation width is how many genes are affected by mutation
+(defparameter *initial-mutation-width* 0.2)
+(defparameter *mutation-width* *initial-mutation-width*)
+;; it is good idea to decrease mutation over time
+;; this parameter controls the decrease
+;; may be :linear, :constant or :exponential
+(defparameter *mutation-decrease-rate* :linear)
+
+(defgeneric decrease-mutation (how i max-i))
+
+(defmethod decrease-mutation ((how (eql :constant)) i max-i)
+  (declare (ignore i max-i)))
+
+(defmethod decrease-mutation ((how (eql :linear)) i max-i)
+  (setf *mutation-depth*
+        (* (/ (- max-i i) max-i)
+           *initial-mutation-depth*))
+  (setf *mutation-width*
+        (* (/ (- max-i i) max-i)
+           *initial-mutation-width*)))
+
+(defmethod decrease-mutation ((how (eql :exponential)) i max-i)
+    (setf *mutation-depth*
+          (* (exp (/ (- i) max-i))
+             *initial-mutation-depth*))
+    (setf *mutation-width*
+          (* (exp (/ (- i) max-i))
+             *initial-mutation-width*)))
 
 ;; population -> ([genotype], [genotype])
 (defgeneric select (population))
@@ -171,7 +207,9 @@
    NOTE: if you do not specify at least one stop condition, evolution will go forever"
   (let* ((i 0)
          (start-time (cl:get-internal-real-time))
-         (current-time start-time))
+         (current-time start-time)
+         (*mutation-depth* *initial-mutation-depth*)
+         (*mutation-width* *initial-mutation-width*))
     (loop until (or (and max-iteration (> i max-iteration))
                     (and timeout (> (- current-time start-time)
                                     (* cl:internal-time-units-per-second timeout)))
@@ -182,5 +220,18 @@
                  (when step-func
                    (funcall step-func
                             pop i (/ (- current-time start-time)
-                                     cl:internal-time-units-per-second))))))
+                                     cl:internal-time-units-per-second)))
+                 (or (when (and max-iteration (> i max-iteration))
+                       (decrease-mutation
+                        *mutation-decrease-rate* i max-iteration)
+                       t)
+                     (when timeout
+                       (decrease-mutation
+                        *mutation-decrease-rate* (- current-time start-time) timeout)
+                       t)))))
   pop)
+
+(defun best-genotype (pop)
+  (maximum (genotype-list pop)
+           :comparator #'fitness-comparator))
+
