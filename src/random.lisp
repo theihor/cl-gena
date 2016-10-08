@@ -5,7 +5,8 @@
            #:split-at
            #:random-take
            #:probability-check
-           #:do-with-probability))
+           #:do-with-probability
+           #:random-indexes))
 
 (in-package :cl-gena/random)
 
@@ -43,4 +44,17 @@
 (defmacro do-with-probability (p &body body)
   `(when (probabilty-check ,p)
      ,@body))
+
+(defun random-indexes (n len) 
+  (let* ((collected (make-hash-table :test #'eq)))
+    (cond
+      ((<= n 0) nil) 
+      ((= n 1) (list (random len)))
+      ((> n len) (error "N is too big"))
+      (t (loop repeat n collect
+              (let ((x (random len)))
+                (loop while (gethash x collected)
+                   do (setf x (mod (+ x (random len)) len)))
+                (setf (gethash x collected) t)
+                x))))))
 

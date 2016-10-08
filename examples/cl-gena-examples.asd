@@ -2,7 +2,8 @@
   :class :package-inferred-system
   :defsystem-depends-on (:asdf-package-system)
   :pathname #p"./"
-  :depends-on (:cl-gena :cl-gena-examples/function-minimization)
+  :depends-on (:cl-gena :cl-gena-examples/function-minimization
+                        :cl-gena-examples/knapsack)
   :in-order-to ((test-op ;; (load-op :src/test/field)
                          ))
   :perform (test-op (o c)

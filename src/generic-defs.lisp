@@ -38,7 +38,7 @@
     :genotype-list (loop for i from 1 to ,size collect
                         (funcall ,generator i))))
 
-(defgeneric geontype-equal (g1 g2))
+(defgeneric genotype-equal (g1 g2))
 
 (defmethod genotype-equal (g1 g2)
   (eq g1 g2))
@@ -221,13 +221,15 @@
                    (funcall step-func
                             pop i (/ (- current-time start-time)
                                      cl:internal-time-units-per-second)))
-                 (or (when (and max-iteration (> i max-iteration))
+                 (or (when max-iteration
                        (decrease-mutation
                         *mutation-decrease-rate* i max-iteration)
                        t)
                      (when timeout
                        (decrease-mutation
-                        *mutation-decrease-rate* (- current-time start-time) timeout)
+                        *mutation-decrease-rate*
+                        (- current-time start-time)
+                        (* cl:internal-time-units-per-second timeout))
                        t)))))
   pop)
 

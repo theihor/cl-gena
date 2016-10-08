@@ -64,9 +64,9 @@
 
 (defmethod mutate ((g vector-genotype))
   (let* ((s (copy-seq (get-sequence g)))
-         (n (round (* (size g) *mutation-width*)))
-         (n (if (= 0 n) 1 n))
-         (indexes (random-take (if (>= n 1) n 1) (loop for i from 0 to (1- (size g)) collect i)))) 
+         (max-n (round (* (size g) *mutation-width*)))
+         (n (if (= 0 max-n) 1 (1+ (random max-n)))) 
+         (indexes (random-indexes n (size g)))) 
     (loop for i in indexes do
          (setf (aref s i)
                (bounded+ (aref s i) 
