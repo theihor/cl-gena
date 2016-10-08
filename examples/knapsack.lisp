@@ -1,6 +1,6 @@
 (defpackage :cl-gena-examples/knapsack
   (:nicknames :knapsack-example)
-  (:use :common-lisp :cl-gena/bit-array-genotype :cl-gena/generic-defs :cl-gena/random))
+  (:use :common-lisp :anaphora :cl-gena/bit-array-genotype :cl-gena/generic-defs :cl-gena/random))
 
 (in-package :knapsack-example)
 
@@ -99,12 +99,47 @@
                                         i (float elapsed-time) the-best))))
       (format t "BEST VALUE = ~A~%" the-best))))
 
-(defun run () 
-  (let ((*items* (plists-to-hash-table (items-generator 1000)))
-        (*knapsack-size* 1000))
+(defun brute-force-solver (items knapsack-size)
+  (let* ((n (hash-table-count items)) 
+         (best-v 0)
+         (start-time (cl:get-internal-real-time))
+         (current-time start-time)
+         )
+    (labels ((%inc (lst)
+               (when lst
+                 (let ((i (1+ (car lst))))
+                   (if (< i n)
+                       (cons i (cdr lst))
+                       (if (cdr lst)
+                           (loop for tail = (%inc (cdr lst)) then (%inc tail)
+                              when (not (= (1- i) (car tail))) return (cons (1+ (car tail)) tail))
+                           (list i)))))))
+      (loop for k from 1 to (1- n) do 
+           (let ((indexes (reverse (loop for i from 0 below k collect i)))
+                 (last-indexes (reverse (loop for i from (- n k) to (1- n) collect i)))) 
+             (loop do (let ((w 0) (v 0)) 
+                        (loop for i in indexes do
+                             (let ((w1 (getf (gethash i items) :weight)))
+                               (if (> (+ w w1) knapsack-size)
+                                   (return)
+                                   (progn (incf w w1)
+                                          (incf v (getf (gethash i items) :value))))))
+                        (when (> v best-v)
+                          (setf best-v v))
+                        (setf indexes (%inc indexes)))
+                until (equal indexes last-indexes) )
+             (setf current-time (cl:get-internal-real-time))
+             (format t "[~A s] BEST VALUE ON K = ~A: ~A~%"
+                     (float (/ (- current-time start-time)
+                          cl:internal-time-units-per-second))
+                     k best-v))))))
+
+(defun run (items knapsack-size &key (population-size 100) (timeout 10.0)) 
+  (let ((*items* items)
+        (*knapsack-size* knapsack-size))
     (solve-knapsack :genotype-size (hash-table-count *items*)
-                    :population-size 100
-                    :timeout 10.0
+                    :population-size population-size
+                    :timeout timeout
                     )))
 
 
